@@ -1,0 +1,15 @@
+{
+  "name": "jbl-wcag-audit-monorepo",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "workspaces": [
+    "workers/browser",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspace @jbl/contracts && npm run typecheck --workspace @jbl/browser-worker"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jbl-audit-api"
+version = "0.1.0"
+description = "FastAPI foundation for the JBL WCAG audit monorepo"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "alembic>=1.14,<2.0",
+  "fastapi>=0.115,<1.0",
+  "openpyxl>=3.1,<4.0",
+  "pydantic-settings>=2.6,<3.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "python-multipart>=0.0.9,<1.0",
+  "rapidfuzz>=3.9,<4.0",
+  "sqlalchemy>=2.0.36,<3.0",
+  "uvicorn>=0.34,<1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28,<1.0",
+  "pytest>=8.3,<9.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
