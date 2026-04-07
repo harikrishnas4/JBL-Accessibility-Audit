@@ -136,6 +136,7 @@ class LocalBrowserWorkerBatchExecutor:
             "storage_state_path": session_state_path,
             "evidence_root_dir": str(self.settings.evidence_root_dir),
         }
+        timeout_seconds = self._resolve_timeout_seconds()
         try:
             process = subprocess.run(
                 [
@@ -146,15 +147,12 @@ class LocalBrowserWorkerBatchExecutor:
                 input=json.dumps(payload),
                 capture_output=True,
                 text=True,
-                timeout=self.settings.browser_worker_timeout_seconds,
+                timeout=timeout_seconds,
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
             raise ServiceError(
-                (
-                    "Browser worker batch execution timed out after "
-                    f"{self.settings.browser_worker_timeout_seconds} seconds."
-                ),
+                self._timeout_error_message(),
                 status_code=500,
             ) from exc
         except OSError as exc:
@@ -196,6 +194,17 @@ class LocalBrowserWorkerBatchExecutor:
             failures=failures,
             summary=dict(response.get("summary", {})),
         )
+
+    def _resolve_timeout_seconds(self) -> int | None:
+        if self.settings.browser_worker_timeout_seconds <= 0:
+            return None
+        return self.settings.browser_worker_timeout_seconds
+
+    def _timeout_error_message(self) -> str:
+        timeout_seconds = self._resolve_timeout_seconds()
+        if timeout_seconds is None:
+            return "Browser worker batch execution timed out."
+        return f"Browser worker batch execution timed out after {timeout_seconds} seconds."
 
 
 def latest_session_state_path(auth_profiles: list[Any]) -> str | None:

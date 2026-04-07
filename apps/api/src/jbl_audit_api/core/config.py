@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     browser_worker_dir: Path = ROOT_DIR / "workers" / "browser"
     browser_worker_entrypoint: Path = ROOT_DIR / "workers" / "browser" / "dist" / "src" / "cli" / "run-tier1-batch.js"
     node_executable: str = "node"
-    browser_worker_timeout_seconds: int = 120
+    browser_worker_timeout_seconds: int = 0
 
     model_config = SettingsConfigDict(
         env_file=ROOT_DIR / ".env",
