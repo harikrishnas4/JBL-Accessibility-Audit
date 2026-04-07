@@ -1,0 +1,35 @@
+{
+  "canonical_asset_types": [
+    "web_page",
+    "component",
+    "document_pdf",
+    "media_video",
+    "third_party_embed",
+    "lti_launch",
+    "quiz_page"
+  ],
+  "tier1_scannable_asset_types": [
+    "web_page",
+    "component",
+    "lti_launch",
+    "quiz_page"
+  ],
+  "legacy_crawler_asset_type_mapping": {
+    "course_page": {
+      "canonical_asset_type": "web_page",
+      "rationale": "A Moodle mod/page activity is a first-party navigable page surface and should be audited as a web page."
+    },
+    "course_quiz": {
+      "canonical_asset_type": "quiz_page",
+      "rationale": "A Moodle mod/quiz activity represents a quiz interaction surface and maps directly to quiz_page."
+    },
+    "course_lti": {
+      "canonical_asset_type": "lti_launch",
+      "rationale": "A Moodle mod/lti activity is the launch point into an external tool and maps directly to lti_launch."
+    },
+    "course_link": {
+      "canonical_asset_type": "web_page",
+      "rationale": "A Moodle mod/url activity is the course-owned launch surface. The destination resource is classified separately when the crawler discovers it as a PDF, media file, or embed."
+    }
+  }
+}

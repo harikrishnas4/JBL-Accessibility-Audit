@@ -126,6 +126,8 @@ await run("supported scan asset types are enforced explicitly", () => {
   assert.doesNotThrow(() => assertSupportedScanAssetType("component"));
   assert.doesNotThrow(() => assertSupportedScanAssetType("lti_launch"));
   assert.doesNotThrow(() => assertSupportedScanAssetType("quiz_page"));
-  assert.throws(() => assertSupportedScanAssetType("pdf_document"), /Unsupported asset type/);
+  assert.throws(() => assertSupportedScanAssetType("document_pdf"), /Unsupported asset type/);
+  assert.throws(() => assertSupportedScanAssetType("media_video"), /Unsupported asset type/);
+  assert.throws(() => assertSupportedScanAssetType("third_party_embed"), /Unsupported asset type/);
   assert.equal(extractWcagSuccessCriterion(["wcag111", "wcag2a"]), "1.1.1");
 });

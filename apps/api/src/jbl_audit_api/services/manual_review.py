@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import uuid
+from datetime import UTC, datetime
 
 from jbl_audit_api.db.models import (
     Asset,
@@ -13,6 +13,7 @@ from jbl_audit_api.db.models import (
     ManualReviewTaskStatus,
     ManualReviewTaskType,
     RawFinding,
+    ThirdPartyEvidence,
 )
 
 
@@ -57,6 +58,8 @@ class ManualReviewService:
         for finding, finding_state, priority in finding_entries:
             if finding_state not in {FindingState.needs_manual_review, FindingState.blocked}:
                 continue
+            asset = finding.asset
+            classification = asset.classification_record if asset is not None else None
             tasks.append(
                 ManualReviewTask(
                     manual_review_task_id=str(uuid.uuid4()),
@@ -75,6 +78,9 @@ class ManualReviewService:
                         "message": finding.message,
                         "target_fingerprint": finding.target_fingerprint,
                         "origin": finding.raw_payload.get("origin", "automated"),
+                        "third_party_evidence": serialize_third_party_evidence(
+                            classification.third_party_evidence if classification is not None else None,
+                        ),
                     },
                     created_at=now,
                     updated_at=now,
@@ -109,3 +115,18 @@ class ManualReviewService:
             )
 
         return tasks
+
+
+def serialize_third_party_evidence(evidence: ThirdPartyEvidence | None) -> dict | None:
+    if evidence is None:
+        return None
+    return {
+        "third_party_evidence_id": evidence.third_party_evidence_id,
+        "provider_name": evidence.provider_name,
+        "domain": evidence.domain,
+        "status": evidence.status,
+        "evidence_type": evidence.evidence_type,
+        "notes": evidence.notes,
+        "linked_shared_key": evidence.linked_shared_key,
+        "provider_key": evidence.provider_key,
+    }

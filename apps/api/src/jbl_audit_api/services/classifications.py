@@ -1,19 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import UTC, datetime
 import hashlib
 import json
-from pathlib import PurePosixPath
 import re
-from urllib.parse import urlsplit, urlunsplit
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import PurePosixPath
+from urllib.parse import urlsplit, urlunsplit
 
-from jbl_audit_api.db.models import Asset, AssetClassification, AssetHandlingPath, AssetLayer, AssetScopeStatus
+from jbl_audit_api.db.models import (
+    Asset,
+    AssetClassification,
+    AssetHandlingPath,
+    AssetLayer,
+    AssetScopeStatus,
+    ThirdPartyEvidence,
+)
 from jbl_audit_api.integrations.docproc import CanonicalSchemaType
 from jbl_audit_api.repositories.classifications import AssetClassificationRepository
+from jbl_audit_api.repositories.third_party_evidence import ThirdPartyEvidenceRepository
 from jbl_audit_api.schemas.classifications import ManifestClassificationContextRequest
-
 
 DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx", ".ppt", ".pptx"}
 TIMED_MEDIA_EXTENSIONS = {".mp3", ".mp4", ".m4a", ".mov", ".wav", ".webm", ".vtt"}
@@ -42,7 +49,7 @@ class ClassificationDecision:
     shared_key: str | None
     owner_team: str | None
     third_party: bool
-    third_party_evidence: str | None
+    third_party_evidence: ThirdPartyEvidence | None
     auth_context: dict
     exclusion_reason: str | None
 
@@ -88,8 +95,13 @@ class ManifestIndexes:
 
 
 class AssetClassificationService:
-    def __init__(self, repository: AssetClassificationRepository) -> None:
+    def __init__(
+        self,
+        repository: AssetClassificationRepository,
+        evidence_repository: ThirdPartyEvidenceRepository,
+    ) -> None:
         self.repository = repository
+        self.evidence_repository = evidence_repository
 
     def classify_assets(
         self,
@@ -99,6 +111,7 @@ class AssetClassificationService:
     ) -> list[AssetClassification]:
         now = datetime.now(UTC)
         manifest_indexes = ManifestIndexes.from_context(manifest_context)
+        evidence_records = self.evidence_repository.list_all()
         existing_by_asset_id = {
             classification.asset_id: classification
             for classification in self.repository.list_for_run_by_asset_ids(
@@ -109,7 +122,7 @@ class AssetClassificationService:
 
         classifications_to_save: list[AssetClassification] = []
         for asset in assets:
-            decision = self._classify_asset(run_id, asset, manifest_indexes)
+            decision = self._classify_asset(run_id, asset, manifest_indexes, evidence_records)
             classification = existing_by_asset_id.get(asset.asset_id)
             if classification is None:
                 classification = AssetClassification(
@@ -132,9 +145,19 @@ class AssetClassificationService:
         self.repository.save(classifications_to_save)
         return self.repository.list_for_run(run_id)
 
-    def _classify_asset(self, run_id: str, asset: Asset, manifest_indexes: ManifestIndexes) -> ClassificationDecision:
+    def _classify_asset(
+        self,
+        run_id: str,
+        asset: Asset,
+        manifest_indexes: ManifestIndexes,
+        evidence_records: list[ThirdPartyEvidence],
+    ) -> ClassificationDecision:
         exclusion_reason = asset.scope_reason if asset.scope_status == AssetScopeStatus.out_of_scope else None
-        blocked_reason = exclusion_reason if exclusion_reason and BLOCKED_REASON_PATTERN.search(exclusion_reason) else None
+        blocked_reason = (
+            exclusion_reason
+            if exclusion_reason and BLOCKED_REASON_PATTERN.search(exclusion_reason)
+            else None
+        )
 
         manifest_document = manifest_indexes.document_by_url.get(normalize_url(asset.locator))
         manifest_embed = manifest_indexes.embed_by_url.get(normalize_url(asset.locator))
@@ -158,6 +181,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.excluded,
                 shared_key=shared_key,
                 exclusion_reason=blocked_reason or exclusion_reason,
+                evidence_records=evidence_records,
             )
 
         if manifest_embed is not None:
@@ -171,6 +195,7 @@ class AssetClassificationService:
                 else AssetHandlingPath.automated_plus_manual,
                 shared_key=shared_key,
                 exclusion_reason=None,
+                evidence_records=evidence_records,
             )
 
         if manifest_document is not None:
@@ -181,6 +206,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.automated_plus_manual,
                 shared_key=self._build_manifest_document_key(asset, manifest_document),
                 exclusion_reason=None,
+                evidence_records=evidence_records,
             )
 
         if manifest_media is not None:
@@ -193,6 +219,7 @@ class AssetClassificationService:
                     handling_path=AssetHandlingPath.manual_only,
                     shared_key=self._build_manifest_media_key(asset, manifest_media),
                     exclusion_reason=None,
+                    evidence_records=evidence_records,
                 )
             if manifest_media_type == "document":
                 return self._build_decision(
@@ -202,6 +229,7 @@ class AssetClassificationService:
                     handling_path=AssetHandlingPath.automated_plus_manual,
                     shared_key=self._build_manifest_media_key(asset, manifest_media),
                     exclusion_reason=None,
+                    evidence_records=evidence_records,
                 )
             if manifest_media_type == "interactive":
                 return self._build_decision(
@@ -211,6 +239,7 @@ class AssetClassificationService:
                     handling_path=AssetHandlingPath.manual_only,
                     shared_key=self._build_manifest_media_key(asset, manifest_media),
                     exclusion_reason=None,
+                    evidence_records=evidence_records,
                 )
             return self._build_decision(
                 run_id=run_id,
@@ -219,6 +248,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.automated_plus_manual,
                 shared_key=self._build_manifest_media_key(asset, manifest_media),
                 exclusion_reason=None,
+                evidence_records=evidence_records,
             )
 
         if manifest_layout is not None:
@@ -239,15 +269,17 @@ class AssetClassificationService:
                 handling_path=handling_path,
                 shared_key=self._build_manifest_layout_key(asset, manifest_layout, layer),
                 exclusion_reason=None,
+                evidence_records=evidence_records,
             )
 
-        return self._heuristic_decision(run_id, asset, blocked_reason)
+        return self._heuristic_decision(run_id, asset, blocked_reason, evidence_records)
 
     def _heuristic_decision(
         self,
         run_id: str,
         asset: Asset,
         blocked_reason: str | None,
+        evidence_records: list[ThirdPartyEvidence],
     ) -> ClassificationDecision:
         extension = locator_extension(asset.locator)
         joined_text = " ".join(
@@ -270,9 +302,10 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.evidence_only,
                 shared_key=self._resolve_shared_key(asset, layer=AssetLayer.third_party),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
-        if extension in DOCUMENT_EXTENSIONS or "pdf_document" in joined_text:
+        if extension in DOCUMENT_EXTENSIONS or asset.asset_type == "document_pdf":
             return self._build_decision(
                 run_id=run_id,
                 asset=asset,
@@ -280,11 +313,27 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.automated_plus_manual,
                 shared_key=self._resolve_shared_key(asset, layer=AssetLayer.document),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
-        if extension in TIMED_MEDIA_EXTENSIONS or "biodigital" in joined_text:
-            layer = AssetLayer.third_party if "biodigital" in joined_text else AssetLayer.media
-            handling_path = AssetHandlingPath.evidence_only if layer == AssetLayer.third_party else AssetHandlingPath.manual_only
+        if extension in TIMED_MEDIA_EXTENSIONS or asset.asset_type == "media_video":
+            return self._build_decision(
+                run_id=run_id,
+                asset=asset,
+                layer=AssetLayer.media,
+                handling_path=AssetHandlingPath.manual_only,
+                shared_key=self._resolve_shared_key(asset, layer=AssetLayer.media),
+                exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
+            )
+
+        if asset.asset_type == "third_party_embed" or "biodigital" in joined_text:
+            layer = AssetLayer.third_party
+            handling_path = (
+                AssetHandlingPath.evidence_only
+                if layer == AssetLayer.third_party
+                else AssetHandlingPath.manual_only
+            )
             return self._build_decision(
                 run_id=run_id,
                 asset=asset,
@@ -292,6 +341,7 @@ class AssetClassificationService:
                 handling_path=handling_path,
                 shared_key=self._resolve_shared_key(asset, layer=layer),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
         if any(keyword in joined_text for keyword in MANUAL_ONLY_KEYWORDS):
@@ -302,6 +352,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.manual_only,
                 shared_key=self._resolve_shared_key(asset, layer=AssetLayer.component),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
         if any(fragment in asset.locator for fragment in ("/theme/", "/lib/", ".js", ".css")):
@@ -312,6 +363,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.automated,
                 shared_key=self._resolve_shared_key(asset, layer=AssetLayer.platform),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
         if "/course/" in asset.locator and "/mod/" not in asset.locator:
@@ -322,6 +374,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.automated,
                 shared_key=self._resolve_shared_key(asset, layer=AssetLayer.course_shell),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
         if extension in IMAGE_EXTENSIONS:
@@ -332,6 +385,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.automated_plus_manual,
                 shared_key=self._resolve_shared_key(asset, layer=AssetLayer.media),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
         if any(fragment in asset.locator for fragment in ("/mod/page/", "/mod/url/", "/mod/quiz/")):
@@ -342,6 +396,7 @@ class AssetClassificationService:
                 handling_path=AssetHandlingPath.automated,
                 shared_key=self._resolve_shared_key(asset, layer=AssetLayer.content),
                 exclusion_reason=blocked_reason,
+                evidence_records=evidence_records,
             )
 
         return self._build_decision(
@@ -351,6 +406,7 @@ class AssetClassificationService:
             handling_path=AssetHandlingPath.automated_plus_manual,
             shared_key=self._resolve_shared_key(asset, layer=AssetLayer.component),
             exclusion_reason=blocked_reason,
+            evidence_records=evidence_records,
         )
 
     def _build_decision(
@@ -362,6 +418,7 @@ class AssetClassificationService:
         handling_path: AssetHandlingPath,
         shared_key: str | None,
         exclusion_reason: str | None,
+        evidence_records: list[ThirdPartyEvidence],
     ) -> ClassificationDecision:
         third_party = layer == AssetLayer.third_party
         return ClassificationDecision(
@@ -370,10 +427,48 @@ class AssetClassificationService:
             shared_key=shared_key,
             owner_team=asset.owner_team or default_owner_team(layer),
             third_party=third_party,
-            third_party_evidence=f"evidence://third-party/{run_id}/{asset.asset_id}" if third_party else None,
+            third_party_evidence=self._resolve_third_party_evidence(
+                asset,
+                shared_key=shared_key,
+                evidence_records=evidence_records,
+            ),
             auth_context=asset.auth_context,
             exclusion_reason=exclusion_reason,
         )
+
+    def _resolve_third_party_evidence(
+        self,
+        asset: Asset,
+        *,
+        shared_key: str | None,
+        evidence_records: list[ThirdPartyEvidence],
+    ) -> ThirdPartyEvidence | None:
+        domain_candidates = {
+            candidate
+            for candidate in (
+                normalize_domain_candidate(asset.locator),
+                normalize_domain_candidate(asset.source_system),
+            )
+            if candidate
+        }
+        provider_candidates = set(domain_candidates)
+        shared_key_token = normalize_token(shared_key)
+        best_match: ThirdPartyEvidence | None = None
+        best_score = -1
+
+        for evidence in evidence_records:
+            score = 0
+            if evidence.linked_shared_key and normalize_token(evidence.linked_shared_key) == shared_key_token:
+                score += 4
+            if evidence.domain and evidence.domain.lower() in domain_candidates:
+                score += 3
+            if evidence.provider_key and evidence.provider_key.lower() in provider_candidates:
+                score += 2
+            if score > best_score:
+                best_match = evidence
+                best_score = score
+
+        return best_match if best_score > 0 else None
 
     def _infer_excluded_layer(self, asset: Asset) -> AssetLayer:
         if self._is_third_party_launch(asset) or self._is_third_party_asset(asset):
@@ -402,13 +497,13 @@ class AssetClassificationService:
         return self._is_timed_media(asset) or any(keyword in text for keyword in MANUAL_ONLY_KEYWORDS)
 
     def _is_timed_media(self, asset: Asset) -> bool:
-        return locator_extension(asset.locator) in TIMED_MEDIA_EXTENSIONS
+        return asset.asset_type == "media_video" or locator_extension(asset.locator) in TIMED_MEDIA_EXTENSIONS
 
     def _is_third_party_launch(self, asset: Asset) -> bool:
         asset_type = normalize_token(asset.asset_type)
         locator_host = normalize_host(asset.locator)
         return (
-            "lti" in asset_type
+            asset.asset_type in {"lti_launch", "third_party_embed"}
             or "biodigital" in asset_type
             or locator_host in THIRD_PARTY_HOSTS
         )
@@ -544,6 +639,14 @@ def normalize_host(value: str | None) -> str:
     return urlsplit(normalized).hostname or ""
 
 
+def normalize_domain_candidate(value: str | None) -> str:
+    if not value:
+        return ""
+    if "://" in value:
+        return normalize_host(value)
+    return value.strip().lower()
+
+
 def locator_extension(locator: str) -> str:
     path = PurePosixPath(urlsplit(locator).path)
     return path.suffix.lower()
@@ -551,6 +654,10 @@ def locator_extension(locator: str) -> str:
 
 def infer_media_type(asset: Asset) -> str:
     extension = locator_extension(asset.locator)
+    if asset.asset_type == "media_video":
+        return "video"
+    if asset.asset_type == "document_pdf":
+        return "document"
     if extension in TIMED_MEDIA_EXTENSIONS:
         return "video" if extension in {".mp4", ".mov", ".webm", ".vtt"} else "audio"
     if extension in DOCUMENT_EXTENSIONS:

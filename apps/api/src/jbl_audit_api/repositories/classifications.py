@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from jbl_audit_api.db.models import AssetClassification
 
@@ -14,6 +14,7 @@ class AssetClassificationRepository:
         return list(
             self.session.scalars(
                 select(AssetClassification)
+                .options(selectinload(AssetClassification.third_party_evidence))
                 .where(AssetClassification.run_id == run_id)
                 .order_by(AssetClassification.asset_id),
             ),
@@ -24,7 +25,9 @@ class AssetClassificationRepository:
             return []
         return list(
             self.session.scalars(
-                select(AssetClassification).where(
+                select(AssetClassification)
+                .options(selectinload(AssetClassification.third_party_evidence))
+                .where(
                     AssetClassification.run_id == run_id,
                     AssetClassification.asset_id.in_(asset_ids),
                 ),

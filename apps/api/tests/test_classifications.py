@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sqlalchemy import select
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from jbl_audit_api.db.models import AssetClassification
 
@@ -84,7 +84,7 @@ def test_manifest_driven_classification_overrides_heuristics(client: TestClient)
             assets=[
                 build_asset(
                     asset_id="asset-widget-1",
-                    asset_type="course_page",
+                    asset_type="web_page",
                     locator="https://courses.example.com/mod/page/view.php?id=91",
                     shared_key="inventory-placeholder",
                     owner_team="instructional-design",
@@ -132,7 +132,7 @@ def test_crawler_only_degraded_classification_uses_heuristics(client: TestClient
             assets=[
                 build_asset(
                     asset_id="asset-page-1",
-                    asset_type="course_page",
+                    asset_type="web_page",
                     locator="https://courses.example.com/mod/page/view.php?id=10",
                     shared_key="inventory-page-key",
                     owner_team=None,
@@ -149,7 +149,7 @@ def test_crawler_only_degraded_classification_uses_heuristics(client: TestClient
     assert classification["owner_team"] == "content"
 
 
-def test_third_party_routing_marks_layer_and_evidence_placeholder(client: TestClient) -> None:
+def test_third_party_routing_links_seeded_evidence_record(client: TestClient) -> None:
     run_id = build_run(client)
     response = client.post(
         "/assets/upsert",
@@ -158,9 +158,9 @@ def test_third_party_routing_marks_layer_and_evidence_placeholder(client: TestCl
             assets=[
                 build_asset(
                     asset_id="asset-lti-1",
-                    asset_type="course_lti",
-                    locator="https://vendor.example.com/lti/launch?id=44",
-                    source_system="vendor.example.com",
+                    asset_type="lti_launch",
+                    locator="https://human.biodigital.com/lti/launch?id=44",
+                    source_system="human.biodigital.com",
                     layer="course_module",
                     handling_path="mod/lti",
                 ),
@@ -173,8 +173,19 @@ def test_third_party_routing_marks_layer_and_evidence_placeholder(client: TestCl
     assert classification["layer"] == "third_party"
     assert classification["handling_path"] == "evidence_only"
     assert classification["third_party"] is True
-    assert classification["third_party_evidence"] == f"evidence://third-party/{run_id}/asset-lti-1"
-    assert classification["shared_key"] == "third_party:vendor.example.com"
+    assert classification["third_party_evidence"] == {
+        "third_party_evidence_id": classification["third_party_evidence"]["third_party_evidence_id"],
+        "provider_name": "human.biodigital.com",
+        "domain": "human.biodigital.com",
+        "status": "cross_origin_blocked",
+        "evidence_type": "VPAT_requested",
+        "notes": "cross_origin_blocked; VPAT_requested",
+        "linked_shared_key": None,
+        "provider_key": "human.biodigital.com",
+        "created_at": classification["third_party_evidence"]["created_at"],
+        "updated_at": classification["third_party_evidence"]["updated_at"],
+    }
+    assert classification["shared_key"] == "third_party:human.biodigital.com"
 
 
 def test_manual_only_assignment_and_reason_persistence(client: TestClient) -> None:
@@ -186,7 +197,7 @@ def test_manual_only_assignment_and_reason_persistence(client: TestClient) -> No
             assets=[
                 build_asset(
                     asset_id="asset-video-1",
-                    asset_type="cdn_media_asset",
+                    asset_type="media_video",
                     locator="https://cdn-media.jblearning.com/assets/lecture-1.mp4",
                     source_system="cdn-media.jblearning.com",
                     layer="embedded_media",
@@ -194,7 +205,7 @@ def test_manual_only_assignment_and_reason_persistence(client: TestClient) -> No
                 ),
                 build_asset(
                     asset_id="asset-cross-origin-1",
-                    asset_type="unsupported_embed",
+                    asset_type="third_party_embed",
                     locator="https://cross-origin.example.com/embed/blocked",
                     source_system="cross-origin.example.com",
                     scope_status="out_of_scope",
@@ -210,13 +221,19 @@ def test_manual_only_assignment_and_reason_persistence(client: TestClient) -> No
     classifications = {item["asset_id"]: item for item in response.json()["classifications"]}
     assert classifications["asset-video-1"]["layer"] == "media"
     assert classifications["asset-video-1"]["handling_path"] == "manual_only"
+    assert classifications["asset-video-1"]["third_party"] is False
+    assert classifications["asset-video-1"]["third_party_evidence"]["domain"] == "cdn-media.jblearning.com"
+    assert classifications["asset-video-1"]["third_party_evidence"]["status"] == "handling_notes_only"
+    assert classifications["asset-video-1"]["third_party_evidence"]["evidence_type"] == "handling_notes_only"
     assert classifications["asset-cross-origin-1"]["layer"] == "third_party"
     assert classifications["asset-cross-origin-1"]["handling_path"] == "excluded"
     assert classifications["asset-cross-origin-1"]["exclusion_reason"] == "cross_origin_blocked"
 
     with client.app.state.session_factory() as session:
         persisted = session.scalars(
-            select(AssetClassification).where(AssetClassification.run_id == run_id).order_by(AssetClassification.asset_id),
+            select(AssetClassification)
+            .where(AssetClassification.run_id == run_id)
+            .order_by(AssetClassification.asset_id),
         ).all()
 
     assert len(persisted) == 2

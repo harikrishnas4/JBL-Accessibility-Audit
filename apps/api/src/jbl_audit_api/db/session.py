@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
+
 def build_engine(database_url: str) -> Engine:
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
     return create_engine(

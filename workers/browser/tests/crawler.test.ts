@@ -44,7 +44,7 @@ class FixtureCollectorSession implements CrawlCollectorSessionLike {
 class FixtureCollector implements CrawlCollectorLike {
   constructor(private readonly fixturesByUrl: Map<string, string>) {}
 
-  async open(_: CrawlRequest): Promise<CrawlCollectorSessionLike> {
+  async open(): Promise<CrawlCollectorSessionLike> {
     return new FixtureCollectorSession(this.fixturesByUrl);
   }
 }
@@ -189,15 +189,13 @@ await run("InventoryCrawler extracts in-scope assets and explicit out-of-scope e
   ]);
 
   const assetTypes = new Set(result.assets.map((asset) => asset.asset_type));
-  assert.ok(assetTypes.has("course_page"));
-  assert.ok(assetTypes.has("course_link"));
-  assert.ok(assetTypes.has("course_quiz"));
-  assert.ok(assetTypes.has("course_lti"));
-  assert.ok(assetTypes.has("pdf_document"));
-  assert.ok(assetTypes.has("biodigital_embed"));
-  assert.ok(assetTypes.has("cdn_media_asset"));
-  assert.ok(assetTypes.has("unsupported_module"));
-  assert.ok(assetTypes.has("unsupported_embed"));
+  assert.ok(assetTypes.has("web_page"));
+  assert.ok(assetTypes.has("quiz_page"));
+  assert.ok(assetTypes.has("lti_launch"));
+  assert.ok(assetTypes.has("document_pdf"));
+  assert.ok(assetTypes.has("media_video"));
+  assert.ok(assetTypes.has("third_party_embed"));
+  assert.ok(assetTypes.has("component"));
 
   const pageAsset = result.assets.find((asset) => asset.locator.includes("/mod/page/"));
   assert.ok(pageAsset);
@@ -206,6 +204,23 @@ await run("InventoryCrawler extracts in-scope assets and explicit out-of-scope e
   assert.equal(pageAsset?.component_fingerprint.stable_css_selector, "a#page-link");
   assert.equal(pageAsset?.component_fingerprint.template_id, "course-module-link");
   assert.equal(pageAsset?.component_fingerprint.bundle_name, "view.php");
+  assert.equal(result.assets.find((asset) => asset.locator.includes("/mod/url/"))?.asset_type, "web_page");
+  assert.equal(
+    result.assets.find((asset) => asset.locator.endsWith("/assets/lesson-1.pdf"))?.asset_type,
+    "document_pdf",
+  );
+  assert.equal(
+    result.assets.find((asset) => asset.locator.endsWith("/assets/lecture-1.mp4"))?.asset_type,
+    "media_video",
+  );
+  assert.equal(
+    result.assets.find((asset) => asset.locator.endsWith("/player/course.js"))?.asset_type,
+    "component",
+  );
+  assert.equal(
+    result.assets.find((asset) => asset.locator.includes("third-party.example.com/embed/42"))?.asset_type,
+    "third_party_embed",
+  );
 
   const excludedLocators = new Set(result.crawl_snapshot.excluded_locators.map((item) => item.locator));
   assert.ok(excludedLocators.has("https://courses.example.com/mod/forum/view.php?id=14"));

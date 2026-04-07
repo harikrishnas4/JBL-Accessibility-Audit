@@ -3,7 +3,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, status
 
 from jbl_audit_api.core.dependencies import get_finding_service, get_run_service
-from jbl_audit_api.schemas.findings import RunFindingsResponse
+from jbl_audit_api.schemas.findings import (
+    AssetFindingsIngestRequest,
+    AssetFindingsIngestResponse,
+    RunFindingsResponse,
+)
 from jbl_audit_api.schemas.runs import AuditInputCreateRequest, AuditRunDetailResponse, AuditRunSummaryResponse
 from jbl_audit_api.services.findings import FindingService
 from jbl_audit_api.services.runs import RunService
@@ -30,3 +34,19 @@ def get_run_findings(
     service: FindingService = Depends(get_finding_service),
 ) -> RunFindingsResponse:
     return RunFindingsResponse.model_validate(service.get_run_findings(id))
+
+
+@router.post(
+    "/runs/{run_id}/assets/{asset_id}/findings",
+    response_model=AssetFindingsIngestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def ingest_asset_findings(
+    run_id: str,
+    asset_id: str,
+    payload: AssetFindingsIngestRequest,
+    service: FindingService = Depends(get_finding_service),
+) -> AssetFindingsIngestResponse:
+    return AssetFindingsIngestResponse.model_validate(
+        service.ingest_asset_findings(run_id, asset_id, payload),
+    )

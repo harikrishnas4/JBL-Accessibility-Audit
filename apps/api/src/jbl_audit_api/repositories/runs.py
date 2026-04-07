@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from jbl_audit_api.db.models import RunPlan, AuditRun
+from jbl_audit_api.db.models import AuditRun, RunPlan
 
 
 class RunRepository:

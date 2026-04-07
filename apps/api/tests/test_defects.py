@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import uuid
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -171,6 +171,82 @@ def test_signature_merge_behavior_deduplicates_shared_component_failures(client:
     assert defect["impacted_asset_count"] == 2
     assert defect["shared_key"] == "shared:lesson-header"
     assert {item["asset_id"] for item in defect["components"]} == {"asset-page-1", "asset-page-2"}
+
+
+def test_defects_output_includes_linked_third_party_evidence(client: TestClient) -> None:
+    run_id = _create_run(client)
+    observed_at = datetime(2026, 4, 7, 13, 0, tzinfo=UTC)
+
+    upsert_response = client.post(
+        "/assets/upsert",
+        json={
+            "run_id": run_id,
+            "crawl_snapshot": {
+                "entry_locator": "https://courses.example.com/course/view.php?id=777",
+                "started_at": observed_at.isoformat(),
+                "completed_at": observed_at.isoformat(),
+                "visited_locators": ["https://courses.example.com/course/view.php?id=777"],
+                "excluded_locators": [],
+                "snapshot_metadata": {"visited_page_count": 1},
+            },
+            "assets": [
+                {
+                    "asset_id": "asset-third-party-defect-1",
+                    "asset_type": "third_party_embed",
+                    "source_system": "human.biodigital.com",
+                    "locator": "https://human.biodigital.com/widget?be=777",
+                    "scope_status": "in_scope",
+                    "layer": "embedded_content",
+                    "shared_key": "third_party:biodigital-widget",
+                    "owner_team": None,
+                    "auth_context": {"role": "learner"},
+                    "handling_path": "iframe:biodigital",
+                    "component_fingerprint": {
+                        "stable_css_selector": "iframe#biodigital-defect",
+                        "template_id": "biodigital-embed",
+                        "bundle_name": "widget",
+                        "controlled_dom_signature": "sig-biodigital-defect",
+                    },
+                    "updated_at": observed_at.isoformat(),
+                },
+            ],
+        },
+    )
+
+    assert upsert_response.status_code == 201
+
+    response = client.post(
+        f"/runs/{run_id}/assets/asset-third-party-defect-1/findings",
+        json={
+            "findings": [
+                {
+                    "result_type": "violation",
+                    "rule_id": "frame-title",
+                    "wcag_sc": "2.4.1",
+                    "resolution_state": "new",
+                    "severity": "serious",
+                    "message": "Embedded frame needs an accessible title.",
+                    "target_fingerprint": "iframe.biodigital-launch",
+                    "raw_payload": {"origin": "automated"},
+                    "observed_at": observed_at.isoformat(),
+                    "evidence_artifacts": [],
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+
+    defects_response = client.get("/defects", params={"run_id": run_id})
+
+    assert defects_response.status_code == 200
+    body = defects_response.json()
+    assert body["defect_count"] == 1
+    defect = body["defects"][0]
+    assert defect["third_party_evidence"]["provider_name"] == "human.biodigital.com"
+    assert defect["third_party_evidence"]["domain"] == "human.biodigital.com"
+    assert defect["third_party_evidence"]["status"] == "cross_origin_blocked"
+    assert defect["third_party_evidence"]["evidence_type"] == "VPAT_requested"
 
 
 def test_prefix_assignment_covers_gp_cp_cs_and_mr(client: TestClient) -> None:

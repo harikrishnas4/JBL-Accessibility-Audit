@@ -1,17 +1,16 @@
 from __future__ import annotations
 
+import uuid
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
-import uuid
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
 from jbl_audit_api.core.exceptions import NotFoundError
-from jbl_audit_api.db.models import Asset, Defect, DefectPriority, RawFinding, ReportRecord
+from jbl_audit_api.db.models import Asset, DefectPriority, RawFinding, ReportRecord, ThirdPartyEvidence
 from jbl_audit_api.repositories.reports import ReportRepository
-
 
 REPORT_TYPE = "excel_export"
 REPORT_FILE_NAME = "wcag-audit-report.xlsx"
@@ -120,6 +119,9 @@ class ReportingService:
             "HOW TO FIX",
             "evidence path",
             "impacted_asset_count",
+            "provider_name",
+            "third_party_evidence_status",
+            "third_party_evidence_type",
         ]
         sheet.append(headers)
         apply_header_style(sheet, 1)
@@ -129,6 +131,7 @@ class ReportingService:
             for component in sorted(defect.components, key=lambda item: item.asset_id):
                 asset = assets_by_id.get(component.asset_id)
                 raw_finding = raw_findings_by_id.get(component.finding_id or "")
+                provider_evidence = resolved_third_party_evidence(asset)
                 sheet.append(
                     [
                         defect.issue_id,
@@ -142,6 +145,9 @@ class ReportingService:
                         HOW_TO_FIX_PLACEHOLDER,
                         pick_evidence_path(raw_finding),
                         defect.impacted_asset_count,
+                        provider_evidence.provider_name if provider_evidence is not None else "",
+                        provider_evidence.status if provider_evidence is not None else "",
+                        provider_evidence.evidence_type if provider_evidence is not None else "",
                     ],
                 )
         set_column_widths(
@@ -158,6 +164,9 @@ class ReportingService:
                 "I": 52,
                 "J": 42,
                 "K": 18,
+                "L": 24,
+                "M": 28,
+                "N": 26,
             },
         )
 
@@ -172,6 +181,9 @@ class ReportingService:
             "P4",
             "worst severity",
             "owner_team",
+            "provider_name",
+            "third_party_evidence_status",
+            "third_party_evidence_type",
         ]
         sheet.append(headers)
         apply_header_style(sheet, 1)
@@ -191,6 +203,9 @@ class ReportingService:
                 "G": 8,
                 "H": 16,
                 "I": 18,
+                "J": 24,
+                "K": 28,
+                "L": 26,
             },
         )
 
@@ -211,10 +226,8 @@ def build_summary_rows(audit_run, raw_findings_by_id: dict[str, RawFinding]) -> 
     unique_asset_count = len(assets) - shared_asset_count
     defect_priority_counts = Counter(defect.priority.value for defect in defects)
     latest_auth_profile = max(audit_run.auth_profiles, key=lambda item: item.created_at, default=None)
-    scan_date = max(
-        [normalize_datetime(finding.observed_at) for finding in raw_findings_by_id.values()]
-        + [normalize_datetime(audit_run.updated_at)],
-    )
+    observed_datetimes = [normalize_datetime(finding.observed_at) for finding in raw_findings_by_id.values()]
+    scan_date = max(observed_datetimes) if observed_datetimes else normalize_datetime(audit_run.updated_at)
 
     return [
         ("course", audit_run.audit_input.course_url_or_name),
@@ -257,6 +270,7 @@ def build_component_health_rows(audit_run) -> list[list[str | int]]:
         priority_counts = group_priority_counts[group_key]
         worst_priority = determine_worst_priority(priority_counts)
         first_asset = assets[0]
+        provider_evidence = resolved_third_party_evidence(first_asset)
         rows.append(
             [
                 group_key,
@@ -268,6 +282,9 @@ def build_component_health_rows(audit_run) -> list[list[str | int]]:
                 priority_counts.get("P4", 0),
                 PRIORITY_TO_SEVERITY[worst_priority] if worst_priority else "",
                 resolved_owner_team(first_asset) or "",
+                provider_evidence.provider_name if provider_evidence is not None else "",
+                provider_evidence.status if provider_evidence is not None else "",
+                provider_evidence.evidence_type if provider_evidence is not None else "",
             ],
         )
     return rows
@@ -302,6 +319,12 @@ def resolved_owner_team(asset: Asset) -> str | None:
     if classification is not None and classification.owner_team:
         return classification.owner_team
     return asset.owner_team
+
+
+def resolved_third_party_evidence(asset: Asset | None) -> ThirdPartyEvidence | None:
+    if asset is None or asset.classification_record is None:
+        return None
+    return asset.classification_record.third_party_evidence
 
 
 def pick_evidence_path(raw_finding: RawFinding | None) -> str:

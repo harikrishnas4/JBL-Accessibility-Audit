@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from jbl_audit_api.core.dependencies import get_schema_registry_service
-from jbl_audit_api.services.schemas import SchemaRegistryService
 from jbl_audit_api.schemas.schemas import SchemaInferResponse, SchemaRegistryEntryResponse
+from jbl_audit_api.services.schemas import SchemaRegistryService
 
 router = APIRouter(tags=["schemas"])
 

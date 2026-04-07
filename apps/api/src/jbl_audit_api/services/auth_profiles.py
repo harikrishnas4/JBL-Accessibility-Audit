@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import uuid
+from datetime import UTC, datetime
 
 from jbl_audit_api.core.exceptions import NotFoundError
 from jbl_audit_api.db.models import AuthProfile

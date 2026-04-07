@@ -18,6 +18,21 @@ class ManifestClassificationContextRequest(BaseModel):
     datasets: list[ManifestDatasetRequest] = Field(default_factory=list)
 
 
+class ThirdPartyEvidenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    third_party_evidence_id: str
+    provider_name: str
+    domain: str
+    status: str
+    evidence_type: str
+    notes: str | None
+    linked_shared_key: str | None
+    provider_key: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class AssetClassificationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,7 +44,7 @@ class AssetClassificationResponse(BaseModel):
     shared_key: str | None
     owner_team: str | None
     third_party: bool
-    third_party_evidence: str | None
+    third_party_evidence: ThirdPartyEvidenceResponse | None
     auth_context: dict[str, Any]
     exclusion_reason: str | None
     created_at: datetime

@@ -21,7 +21,11 @@ class DefectRepository:
         return list(
             self.session.scalars(
                 select(Asset)
-                .options(selectinload(Asset.classification_record))
+                .options(
+                    selectinload(Asset.classification_record).selectinload(
+                        AssetClassification.third_party_evidence,
+                    ),
+                )
                 .where(Asset.run_id == run_id)
                 .order_by(Asset.asset_id),
             ),
@@ -32,7 +36,9 @@ class DefectRepository:
             self.session.scalars(
                 select(RawFinding)
                 .options(
-                    selectinload(RawFinding.asset).selectinload(Asset.classification_record),
+                    selectinload(RawFinding.asset)
+                    .selectinload(Asset.classification_record)
+                    .selectinload(AssetClassification.third_party_evidence),
                     selectinload(RawFinding.evidence_artifacts),
                 )
                 .where(RawFinding.run_id == run_id)
@@ -57,7 +63,12 @@ class DefectRepository:
     def list_defects(self, run_id: str | None = None) -> list[Defect]:
         statement = (
             select(Defect)
-            .options(selectinload(Defect.components))
+            .options(
+                selectinload(Defect.components)
+                .selectinload(DefectComponent.asset)
+                .selectinload(Asset.classification_record)
+                .selectinload(AssetClassification.third_party_evidence),
+            )
             .order_by(Defect.issue_id, Defect.defect_id)
         )
         if run_id is not None:

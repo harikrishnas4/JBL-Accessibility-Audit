@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  browser-worker:
+    name: Browser Worker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Lint TypeScript
+        run: npm run lint
+
+      - name: Typecheck TypeScript
+        run: npm run typecheck
+
+      - name: Test browser worker
+        run: npm run test --workspace @jbl/browser-worker
+
+  docproc:
+    name: Docproc
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install docproc dependencies
+        working-directory: workers/docproc
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .[dev]
+
+      - name: Lint docproc
+        working-directory: workers/docproc
+        run: python -m ruff check src tests
+
+      - name: Test docproc
+        working-directory: workers/docproc
+        run: python -m pytest -q tests
+
+  api:
+    name: API
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build browser worker
+        run: npm run build --workspace @jbl/browser-worker
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .[dev]
+
+      - name: Lint API
+        working-directory: apps/api
+        run: python -m ruff check src tests
+
+      - name: Test API
+        working-directory: apps/api
+        run: python -m pytest -q tests

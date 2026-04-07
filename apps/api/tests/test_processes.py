@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sqlalchemy import select
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from jbl_audit_api.db.models import ProcessFlow, ProcessFlowStep
 
@@ -98,7 +98,7 @@ def test_processes_upsert_builds_simple_course_flow(client: TestClient) -> None:
         assets=[
             build_asset(
                 asset_id="asset-page-10",
-                asset_type="course_page",
+                asset_type="web_page",
                 locator="https://courses.example.com/mod/page/view.php?id=10",
                 shared_key="page-10",
                 handling_path="mod/page",
@@ -197,7 +197,7 @@ def test_processes_upsert_builds_quiz_flow(client: TestClient) -> None:
         assets=[
             build_asset(
                 asset_id="asset-quiz-20",
-                asset_type="course_quiz",
+                asset_type="quiz_page",
                 locator="https://courses.example.com/mod/quiz/view.php?id=20",
                 shared_key="quiz-20",
                 handling_path="mod/quiz",
@@ -264,14 +264,14 @@ def test_processes_upsert_builds_lti_flow_with_biodigital_note(client: TestClien
         assets=[
             build_asset(
                 asset_id="asset-lti-30",
-                asset_type="course_lti",
+                asset_type="lti_launch",
                 locator="https://courses.example.com/mod/lti/view.php?id=30",
                 shared_key="lti-30",
                 handling_path="mod/lti",
             ),
             build_asset(
                 asset_id="asset-biodigital-1",
-                asset_type="biodigital_embed",
+                asset_type="third_party_embed",
                 locator="https://human.biodigital.com/widget?be=123",
                 source_system="human.biodigital.com",
                 shared_key="biodigital-1",
@@ -324,7 +324,7 @@ def test_processes_upsert_marks_missing_steps_without_failing(client: TestClient
         assets=[
             build_asset(
                 asset_id="asset-page-11",
-                asset_type="course_page",
+                asset_type="web_page",
                 locator="https://courses.example.com/mod/page/view.php?id=11",
                 shared_key="page-11",
                 handling_path="mod/page",

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 MONOREPO_ROOT = Path(__file__).resolve().parents[5]
 DOCPROC_SRC = MONOREPO_ROOT / "workers" / "docproc" / "src"

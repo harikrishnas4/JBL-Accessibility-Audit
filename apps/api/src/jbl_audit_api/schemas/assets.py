@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from jbl_audit_api.contracts.asset_taxonomy import validate_canonical_asset_type
 from jbl_audit_api.db.models import AssetScopeStatus
 from jbl_audit_api.schemas.classifications import AssetClassificationResponse, ManifestClassificationContextRequest
 
@@ -37,6 +38,11 @@ class AssetUpsertItemRequest(BaseModel):
     handling_path: str = Field(min_length=1, max_length=255)
     component_fingerprint: dict[str, Any] = Field(default_factory=dict)
     updated_at: datetime
+
+    @field_validator("asset_type")
+    @classmethod
+    def validate_asset_type(cls, value: str) -> str:
+        return validate_canonical_asset_type(value)
 
     @model_validator(mode="after")
     def validate_scope_reason(self) -> "AssetUpsertItemRequest":

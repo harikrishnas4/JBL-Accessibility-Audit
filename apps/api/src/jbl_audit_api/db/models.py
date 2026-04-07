@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, ForeignKey, ForeignKeyConstraint, JSON, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, ForeignKeyConstraint, String, UniqueConstraint
+from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from jbl_audit_api.db.base import Base
@@ -71,14 +72,18 @@ class ProcessFlowStepStatus(str, Enum):
 
 class RunPlanStatus(str, Enum):
     awaiting_assets = "awaiting_assets"
-    planned = "planned"
-    dispatched = "dispatched"
+    queued = "queued"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
     manual_pending = "manual_pending"
 
 
 class ScanBatchStatus(str, Enum):
-    planned = "planned"
-    dispatched = "dispatched"
+    queued = "queued"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
     manual_pending = "manual_pending"
 
 
@@ -264,6 +269,28 @@ class ReportRecord(Base):
     audit_run: Mapped[AuditRun] = relationship(back_populates="report_records")
 
 
+class ThirdPartyEvidence(Base):
+    __tablename__ = "third_party_evidence"
+    __table_args__ = (
+        UniqueConstraint("provider_key", name="uq_third_party_evidence_provider_key"),
+    )
+
+    third_party_evidence_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    provider_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(128), nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    notes: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    linked_shared_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    provider_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    asset_classifications: Mapped[list["AssetClassification"]] = relationship(
+        back_populates="third_party_evidence",
+    )
+
+
 class AuthProfile(Base):
     __tablename__ = "auth_profiles"
 
@@ -394,7 +421,11 @@ class AssetClassification(Base):
     shared_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     owner_team: Mapped[str | None] = mapped_column(String(255), nullable=True)
     third_party: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    third_party_evidence: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    third_party_evidence_id: Mapped[str | None] = mapped_column(
+        ForeignKey("third_party_evidence.third_party_evidence_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     auth_context: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     exclusion_reason: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -407,6 +438,9 @@ class AssetClassification(Base):
     asset: Mapped[Asset] = relationship(
         back_populates="classification_record",
         overlaps="asset_classifications,audit_run",
+    )
+    third_party_evidence: Mapped[ThirdPartyEvidence | None] = relationship(
+        back_populates="asset_classifications",
     )
 
 
@@ -674,6 +708,16 @@ class Defect(Base):
         cascade="all, delete-orphan",
     )
 
+    @property
+    def third_party_evidence(self) -> ThirdPartyEvidence | None:
+        for component in self.components:
+            asset = component.asset
+            if asset is None or asset.classification_record is None:
+                continue
+            if asset.classification_record.third_party_evidence is not None:
+                return asset.classification_record.third_party_evidence
+        return None
+
 
 class DefectComponent(Base):
     __tablename__ = "defect_components"
@@ -761,8 +805,14 @@ class ManualReviewTask(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    audit_run: Mapped[AuditRun] = relationship(back_populates="manual_review_tasks", overlaps="asset,manual_review_tasks")
-    asset: Mapped[Asset | None] = relationship(back_populates="manual_review_tasks", overlaps="audit_run,manual_review_tasks")
+    audit_run: Mapped[AuditRun] = relationship(
+        back_populates="manual_review_tasks",
+        overlaps="asset,manual_review_tasks",
+    )
+    asset: Mapped[Asset | None] = relationship(
+        back_populates="manual_review_tasks",
+        overlaps="audit_run,manual_review_tasks",
+    )
     raw_finding: Mapped[RawFinding | None] = relationship()
     defect: Mapped[Defect | None] = relationship(back_populates="manual_review_tasks")
 
@@ -804,4 +854,5 @@ __all__ = [
     "ScanBatchStatus",
     "ScanBatchType",
     "SchemaRegistryEntry",
+    "ThirdPartyEvidence",
 ]

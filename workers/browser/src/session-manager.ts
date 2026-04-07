@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type BrowserType, type Cookie, type Page } from "playwright";
+import { chromium, type Browser, type BrowserType, type Cookie, type Page } from "playwright";
 
 import type {
   AuthenticatedAccessSignal,

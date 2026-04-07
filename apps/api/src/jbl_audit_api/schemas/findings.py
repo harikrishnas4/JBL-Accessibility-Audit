@@ -28,6 +28,11 @@ class RawFindingCreateRequest(BaseModel):
     evidence_artifacts: list[EvidenceArtifactCreateRequest] = Field(default_factory=list)
 
 
+class AssetFindingsIngestRequest(BaseModel):
+    findings: list[RawFindingCreateRequest] = Field(min_length=1)
+    scan_metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class EvidenceArtifactResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,3 +71,12 @@ class RunFindingsResponse(BaseModel):
     finding_count: int
     result_counts: dict[str, int]
     findings: list[RawFindingResponse]
+
+
+class AssetFindingsIngestResponse(BaseModel):
+    run_id: str
+    asset_id: str
+    persisted_finding_count: int
+    evidence_artifact_count: int
+    result_counts: dict[str, int]
+    scan_metadata: dict[str, Any]

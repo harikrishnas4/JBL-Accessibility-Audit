@@ -1,6 +1,7 @@
-import { chromium, type Browser, type BrowserContext, type BrowserType, type Cookie, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type BrowserType, type Page } from "playwright";
 
 import type {
+  AssetType,
   CrawlExclusionRecord,
   CrawlRequest,
   CrawlResult,
@@ -14,14 +15,15 @@ import {
   type DiscoveryNode,
 } from "./fingerprints.js";
 
-const SUPPORTED_MODULE_PATHS = [
-  { fragment: "mod/page", regex: /\/mod\/page\//i, assetType: "course_page" },
-  { fragment: "mod/url", regex: /\/mod\/url\//i, assetType: "course_link" },
-  { fragment: "mod/quiz", regex: /\/mod\/quiz\//i, assetType: "course_quiz" },
-  { fragment: "mod/lti", regex: /\/mod\/lti\//i, assetType: "course_lti" },
+const SUPPORTED_MODULE_PATHS: ReadonlyArray<{ fragment: string; regex: RegExp; assetType: AssetType }> = [
+  { fragment: "mod/page", regex: /\/mod\/page\//i, assetType: "web_page" },
+  { fragment: "mod/url", regex: /\/mod\/url\//i, assetType: "web_page" },
+  { fragment: "mod/quiz", regex: /\/mod\/quiz\//i, assetType: "quiz_page" },
+  { fragment: "mod/lti", regex: /\/mod\/lti\//i, assetType: "lti_launch" },
 ] as const;
 
 const EMBED_TAGS = new Set(["iframe", "script", "object", "embed"]);
+const TIMED_MEDIA_EXTENSIONS = new Set([".mp3", ".mp4", ".m4a", ".mov", ".wav", ".webm"]);
 
 export interface CollectedPage {
   page_url: string;
@@ -250,7 +252,7 @@ export function classifyDiscoveredNode(node: DiscoveryNode, request: CrawlReques
       request,
       node,
       locator: locator.toString(),
-      assetType: "unsupported_module",
+      assetType: "web_page",
       sourceSystem: "moodle",
       scopeStatus: "out_of_scope",
       scopeReason: "unsupported_module_path",
@@ -264,7 +266,7 @@ export function classifyDiscoveredNode(node: DiscoveryNode, request: CrawlReques
       request,
       node,
       locator: locator.toString(),
-      assetType: "pdf_document",
+      assetType: "document_pdf",
       sourceSystem: locator.hostname,
       scopeStatus: "in_scope",
       layer: "document",
@@ -273,14 +275,15 @@ export function classifyDiscoveredNode(node: DiscoveryNode, request: CrawlReques
   }
 
   if (locator.hostname === "cdn-media.jblearning.com") {
+    const extension = locator.pathname.slice(locator.pathname.lastIndexOf(".")).toLowerCase();
     return buildAssetRecord({
       request,
       node,
       locator: locator.toString(),
-      assetType: "cdn_media_asset",
+      assetType: TIMED_MEDIA_EXTENSIONS.has(extension) ? "media_video" : "component",
       sourceSystem: locator.hostname,
       scopeStatus: "in_scope",
-      layer: "embedded_media",
+      layer: TIMED_MEDIA_EXTENSIONS.has(extension) ? "embedded_media" : "embedded_component",
       handlingPath: `${node.tag_name}:cdn-media`,
     });
   }
@@ -290,7 +293,7 @@ export function classifyDiscoveredNode(node: DiscoveryNode, request: CrawlReques
       request,
       node,
       locator: locator.toString(),
-      assetType: "biodigital_embed",
+      assetType: "third_party_embed",
       sourceSystem: locator.hostname,
       scopeStatus: "in_scope",
       layer: "embedded_content",
@@ -303,7 +306,7 @@ export function classifyDiscoveredNode(node: DiscoveryNode, request: CrawlReques
       request,
       node,
       locator: locator.toString(),
-      assetType: "unsupported_embed",
+      assetType: "third_party_embed",
       sourceSystem: locator.hostname || "embedded_resource",
       scopeStatus: "out_of_scope",
       scopeReason: "unsupported_embed_origin",
@@ -319,7 +322,7 @@ function buildAssetRecord(options: {
   request: CrawlRequest;
   node: DiscoveryNode;
   locator: string;
-  assetType: string;
+  assetType: AssetType;
   sourceSystem: string;
   scopeStatus: ExtractedAsset["scope_status"];
   scopeReason?: string;

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 import hashlib
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from jbl_audit_api.core.exceptions import NotFoundError
 from jbl_audit_api.db.models import (
     Asset,
-    AssetHandlingPath,
     AssetLayer,
     Defect,
     DefectComponent,
@@ -21,7 +20,6 @@ from jbl_audit_api.repositories.defects import DefectRepository
 from jbl_audit_api.repositories.runs import RunRepository
 from jbl_audit_api.services.manual_review import ManualReviewService
 from jbl_audit_api.services.reporting import ReportingService
-
 
 PRIORITY_BY_SEVERITY = {
     "critical": DefectPriority.P1,
@@ -96,7 +94,6 @@ class NormalizationService:
 
         for finding in findings:
             asset = finding.asset
-            classification = asset.classification_record if asset is not None else None
             finding_state = determine_finding_state(finding)
             priority = map_priority(finding.severity)
             finding_entries.append((finding, finding_state, priority))

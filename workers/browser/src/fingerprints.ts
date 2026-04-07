@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { ComponentFingerprint } from "./contracts.js";
+import type { AssetType, ComponentFingerprint } from "./contracts.js";
 
 export interface DiscoveryAncestor {
   tag_name: string;
@@ -145,7 +145,7 @@ export function buildSharedKey(sourceSystem: string, node: DiscoveryNode, finger
   );
 }
 
-export function buildAssetId(assetType: string, locator: string, fingerprint: ComponentFingerprint): string {
+export function buildAssetId(assetType: AssetType, locator: string, fingerprint: ComponentFingerprint): string {
   return hashValue(
     JSON.stringify({
       asset_type: assetType,

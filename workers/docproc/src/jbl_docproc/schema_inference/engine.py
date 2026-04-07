@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook
@@ -53,7 +53,11 @@ class SchemaInferenceEngine:
             sheet_reports.append(
                 SheetInference(
                     sheet_name=sheet_inventory.sheet_name,
-                    schema_type=best_assignment.schema_type if best_assignment.confidence != ConfidenceTier.none else None,
+                    schema_type=(
+                        best_assignment.schema_type
+                        if best_assignment.confidence != ConfidenceTier.none
+                        else None
+                    ),
                     confidence=best_assignment.confidence,
                     matched_header_row=best_assignment.matched_header_row,
                     matched_headers=best_assignment.matched_headers,

@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "npm run build --workspace @jbl/contracts && tsc -p tsconfig.json --pretty false",
+    "lint": "eslint src tests",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.json --pretty false && node dist/tests/session-manager.test.js && node dist/tests/crawler.test.js && node dist/tests/scan-adapter.test.js"
+    "test": "npm run build --workspace @jbl/contracts && tsc -p tsconfig.json --pretty false && node dist/tests/session-manager.test.js && node dist/tests/crawler.test.js && node dist/tests/scan-adapter.test.js && node dist/tests/batch-executor.test.js"
   },
   "dependencies": {
     "@axe-core/playwright": "^4.10.2",
+    "@jbl/contracts": "0.1.0",
     "playwright": "^1.52.0"
   },
   "devDependencies": {

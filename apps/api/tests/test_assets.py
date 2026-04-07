@@ -43,7 +43,7 @@ def test_post_assets_upsert_persists_snapshot_and_assets(client: TestClient) -> 
             "assets": [
                 {
                     "asset_id": "asset-page-10",
-                    "asset_type": "course_module_page",
+                    "asset_type": "web_page",
                     "source_system": "moodle",
                     "locator": "https://courses.example.com/mod/page/view.php?id=10",
                     "scope_status": "in_scope",
@@ -62,7 +62,7 @@ def test_post_assets_upsert_persists_snapshot_and_assets(client: TestClient) -> 
                 },
                 {
                     "asset_id": "asset-forum-88",
-                    "asset_type": "unsupported_module",
+                    "asset_type": "web_page",
                     "source_system": "moodle",
                     "locator": "https://courses.example.com/mod/forum/view.php?id=88",
                     "scope_status": "out_of_scope",
@@ -121,7 +121,7 @@ def test_post_assets_upsert_updates_existing_assets_for_run(client: TestClient) 
         "assets": [
             {
                 "asset_id": "asset-page-10",
-                "asset_type": "course_module_page",
+                "asset_type": "web_page",
                 "source_system": "moodle",
                 "locator": "https://courses.example.com/mod/page/view.php?id=10",
                 "scope_status": "in_scope",
@@ -155,7 +155,7 @@ def test_post_assets_upsert_updates_existing_assets_for_run(client: TestClient) 
             "assets": [
                 {
                     "asset_id": "asset-page-10",
-                    "asset_type": "course_module_page",
+                    "asset_type": "web_page",
                     "source_system": "moodle",
                     "locator": "https://courses.example.com/mod/page/view.php?id=10",
                     "scope_status": "in_scope",
@@ -199,7 +199,7 @@ def test_post_assets_upsert_rejects_out_of_scope_without_reason(client: TestClie
             "assets": [
                 {
                     "asset_id": "asset-forum-88",
-                    "asset_type": "unsupported_module",
+                    "asset_type": "web_page",
                     "source_system": "moodle",
                     "locator": "https://courses.example.com/mod/forum/view.php?id=88",
                     "scope_status": "out_of_scope",
@@ -217,3 +217,41 @@ def test_post_assets_upsert_rejects_out_of_scope_without_reason(client: TestClie
 
     assert response.status_code == 422
     assert "scope_reason is required" in response.text
+
+
+def test_post_assets_upsert_rejects_non_canonical_asset_type(client: TestClient) -> None:
+    run_id = build_run(client)
+
+    response = client.post(
+        "/assets/upsert",
+        json={
+            "run_id": run_id,
+            "crawl_snapshot": {
+                "entry_locator": "https://courses.example.com/course/view.php?id=42",
+                "started_at": "2026-04-06T10:00:00Z",
+                "completed_at": "2026-04-06T10:05:00Z",
+                "visited_locators": [],
+                "excluded_locators": [],
+                "snapshot_metadata": {},
+            },
+            "assets": [
+                {
+                    "asset_id": "asset-legacy-page-10",
+                    "asset_type": "course_page",
+                    "source_system": "moodle",
+                    "locator": "https://courses.example.com/mod/page/view.php?id=10",
+                    "scope_status": "in_scope",
+                    "layer": "course_module",
+                    "shared_key": "shared-page-10",
+                    "owner_team": "content",
+                    "auth_context": {"role": "learner"},
+                    "handling_path": "mod/page",
+                    "component_fingerprint": {},
+                    "updated_at": "2026-04-06T10:05:00Z",
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "asset_type must be one of" in response.text

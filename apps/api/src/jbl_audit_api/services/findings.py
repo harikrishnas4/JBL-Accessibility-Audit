@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import uuid
 from collections import Counter
 from datetime import UTC, datetime
-import uuid
+from typing import Any
 
 from jbl_audit_api.core.exceptions import NotFoundError
 from jbl_audit_api.db.models import EvidenceArtifact, RawFinding, RawFindingResultType
 from jbl_audit_api.repositories.findings import FindingRepository
 from jbl_audit_api.repositories.runs import RunRepository
-from jbl_audit_api.schemas.findings import RawFindingCreateRequest
+from jbl_audit_api.schemas.findings import AssetFindingsIngestRequest, RawFindingCreateRequest
 from jbl_audit_api.services.normalization import NormalizationService
 
 
@@ -28,6 +29,8 @@ class FindingService:
         run_id: str,
         asset_id: str,
         findings: list[RawFindingCreateRequest],
+        *,
+        scan_metadata: dict[str, Any] | None = None,
     ) -> list[RawFinding]:
         if self.run_repository.get(run_id) is None:
             raise NotFoundError(f"run '{run_id}' does not exist")
@@ -48,7 +51,7 @@ class FindingService:
                 severity=item.severity,
                 message=item.message,
                 target_fingerprint=item.target_fingerprint,
-                raw_payload=item.raw_payload,
+                raw_payload=self._build_raw_payload(item, scan_metadata),
                 observed_at=item.observed_at,
                 created_at=now,
                 updated_at=now,
@@ -71,16 +74,50 @@ class FindingService:
         self.normalization_service.sync_run(run_id)
         return persisted
 
+    def ingest_asset_findings(
+        self,
+        run_id: str,
+        asset_id: str,
+        payload: AssetFindingsIngestRequest,
+    ) -> dict[str, Any]:
+        persisted = self.persist_scan_results(
+            run_id,
+            asset_id,
+            payload.findings,
+            scan_metadata=payload.scan_metadata,
+        )
+        return {
+            "run_id": run_id,
+            "asset_id": asset_id,
+            "persisted_finding_count": len(persisted),
+            "evidence_artifact_count": sum(len(finding.evidence_artifacts) for finding in persisted),
+            "result_counts": self._result_counts(persisted),
+            "scan_metadata": payload.scan_metadata,
+        }
+
     def get_run_findings(self, run_id: str) -> dict:
         if self.run_repository.get(run_id) is None:
             raise NotFoundError(f"run '{run_id}' does not exist")
 
         findings = self.repository.list_findings_for_run(run_id)
-        result_counts = Counter({result.value: 0 for result in RawFindingResultType})
-        result_counts.update(finding.result_type.value for finding in findings)
         return {
             "run_id": run_id,
             "finding_count": len(findings),
-            "result_counts": dict(result_counts),
+            "result_counts": self._result_counts(findings),
             "findings": findings,
         }
+
+    def _build_raw_payload(
+        self,
+        finding: RawFindingCreateRequest,
+        scan_metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        payload = dict(finding.raw_payload)
+        if scan_metadata:
+            payload.setdefault("scan_metadata", scan_metadata)
+        return payload
+
+    def _result_counts(self, findings: list[RawFinding]) -> dict[str, int]:
+        result_counts = Counter({result.value: 0 for result in RawFindingResultType})
+        result_counts.update(finding.result_type.value for finding in findings)
+        return dict(result_counts)

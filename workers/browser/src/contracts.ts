@@ -1,10 +1,20 @@
 import type { Cookie } from "playwright";
+import type { CanonicalAssetType, Tier1ScannableAssetType } from "@jbl/contracts";
+export {
+  CANONICAL_ASSET_TYPES,
+  LEGACY_CRAWLER_ASSET_TYPE_MAPPING,
+  TIER1_SCANNABLE_ASSET_TYPES,
+  isCanonicalAssetType,
+  isTier1ScannableAssetType,
+} from "@jbl/contracts";
 
 export type AuthRole = "learner" | "instructor" | "admin";
 export type LoginMethod = "username_password" | "manual_storage_state" | "manual_cookie_injection";
 export type ValidationStatus = "pending" | "validated" | "failed";
 export type AssetScopeStatus = "in_scope" | "out_of_scope";
-export type ScanAssetType = "web_page" | "component" | "lti_launch" | "quiz_page";
+export type AssetType = CanonicalAssetType;
+export type ScanAssetType = CanonicalAssetType;
+export type SupportedTier1ScanAssetType = Tier1ScannableAssetType;
 export type FindingResultType = "violation" | "pass" | "incomplete" | "inapplicable";
 export type EvidenceArtifactType = "screenshot" | "trace" | "dom_snapshot_reference";
 
@@ -86,7 +96,7 @@ export interface ComponentFingerprint {
 
 export interface ExtractedAsset {
   asset_id: string;
-  asset_type: string;
+  asset_type: AssetType;
   source_system: string;
   locator: string;
   scope_status: AssetScopeStatus;
@@ -183,7 +193,7 @@ export interface ScanAdapterRequest {
 export interface ScanAdapterResult {
   run_id: string;
   asset_id: string;
-  asset_type: ScanAssetType;
+  asset_type: SupportedTier1ScanAssetType;
   viewport: ViewportSpec;
   findings: RawFindingRecord[];
   scan_metadata: Record<string, unknown>;

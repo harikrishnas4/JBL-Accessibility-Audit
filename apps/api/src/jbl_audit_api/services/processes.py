@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
-import uuid
 
 from jbl_audit_api.core.exceptions import NotFoundError, ServiceError
 from jbl_audit_api.db.models import (
@@ -20,7 +20,6 @@ from jbl_audit_api.schemas.processes import (
     CrawlGraphNodeRequest,
     ProcessUpsertRequest,
 )
-
 
 STANDARD_STEP_KEYS = ("sign-in", "dashboard", "launch", "navigate", "attempt", "submit", "review")
 
@@ -161,7 +160,9 @@ class ProcessService:
             self._build_submit_step(
                 graph,
                 quiz_asset,
-                preferred_locator=submit_edge.to_locator if submit_edge else review_node.locator if review_node else None,
+                preferred_locator=(
+                    submit_edge.to_locator if submit_edge else review_node.locator if review_node else None
+                ),
                 preferred_note=submit_edge.note if submit_edge and submit_edge.note else (
                     "Submit inferred from transition to review or result page." if review_node else None
                 ),
@@ -311,7 +312,10 @@ class ProcessService:
             return StepBlueprint(
                 step_key="launch",
                 status=ProcessFlowStepStatus.present,
-                asset_id=node.asset_id or (target_asset.asset.asset_id if target_asset and node.asset_id is None else None),
+                asset_id=(
+                    node.asset_id
+                    or (target_asset.asset.asset_id if target_asset and node.asset_id is None else None)
+                ),
                 locator=node.locator,
                 note=node.title,
             )

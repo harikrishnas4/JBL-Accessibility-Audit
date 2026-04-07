@@ -5,7 +5,6 @@ from urllib.parse import parse_qs, urlsplit
 
 from jbl_audit_api.db.models import Asset, AssetClassification, AssetHandlingPath, ScanBatchType
 
-
 VIEWPORT_MATRIX: tuple[dict[str, int | str], ...] = (
     {"name": "desktop", "width": 1280, "height": 800},
     {"name": "tablet", "width": 768, "height": 1024},

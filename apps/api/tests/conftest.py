@@ -20,6 +20,7 @@ def client(tmp_path: Path) -> TestClient:
         api_host="127.0.0.1",
         api_port=8000,
         database_url=f"sqlite:///{database_path}",
+        evidence_root_dir=tmp_path / "evidence",
         reports_root_dir=tmp_path / "reports",
     )
     app = create_app(settings)

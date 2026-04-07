@@ -7,9 +7,15 @@
     "packages/contracts"
   ],
   "scripts": {
+    "lint": "npm run lint --workspace @jbl/contracts && npm run lint --workspace @jbl/browser-worker",
+    "test": "npm run test --workspace @jbl/browser-worker",
     "typecheck": "npm run typecheck --workspace @jbl/contracts && npm run typecheck --workspace @jbl/browser-worker"
   },
   "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "eslint": "^9.24.0",
+    "globals": "^16.0.0",
+    "typescript-eslint": "^8.29.1",
     "typescript": "^5.8.3"
   }
 }

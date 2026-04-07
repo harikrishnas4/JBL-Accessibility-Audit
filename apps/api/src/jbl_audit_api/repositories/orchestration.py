@@ -15,6 +15,7 @@ class OrchestrationRepository:
             select(AuditRun)
             .options(
                 selectinload(AuditRun.audit_input),
+                selectinload(AuditRun.auth_profiles),
                 selectinload(AuditRun.crawl_snapshot),
                 selectinload(AuditRun.assets).selectinload(Asset.classification_record),
                 selectinload(AuditRun.run_plan).selectinload(RunPlan.scan_batches),

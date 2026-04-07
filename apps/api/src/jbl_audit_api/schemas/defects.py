@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from jbl_audit_api.db.models import AssetLayer, DefectPriority, FindingState
+from jbl_audit_api.schemas.classifications import ThirdPartyEvidenceResponse
 
 
 class DefectComponentResponse(BaseModel):
@@ -39,6 +40,7 @@ class DefectResponse(BaseModel):
     message: str
     finding_origin: str
     impacted_asset_count: int
+    third_party_evidence: ThirdPartyEvidenceResponse | None = None
     created_at: datetime
     updated_at: datetime
     components: list[DefectComponentResponse]

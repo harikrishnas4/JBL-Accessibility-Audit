@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from jbl_audit_api.db.models import Asset, AuditRun, Defect, RawFinding, ReportRecord
+from jbl_audit_api.db.models import Asset, AssetClassification, AuditRun, Defect, RawFinding, ReportRecord
 
 
 class ReportRepository:
@@ -16,7 +16,9 @@ class ReportRepository:
             .options(
                 selectinload(AuditRun.audit_input),
                 selectinload(AuditRun.auth_profiles),
-                selectinload(AuditRun.assets).selectinload(Asset.classification_record),
+                selectinload(AuditRun.assets)
+                .selectinload(Asset.classification_record)
+                .selectinload(AssetClassification.third_party_evidence),
                 selectinload(AuditRun.defects).selectinload(Defect.components),
                 selectinload(AuditRun.report_records),
             )

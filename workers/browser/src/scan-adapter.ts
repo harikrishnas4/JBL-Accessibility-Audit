@@ -1,4 +1,5 @@
 import { AxeBuilder } from "@axe-core/playwright";
+import { TIER1_SCANNABLE_ASSET_TYPES, type Tier1ScannableAssetType } from "@jbl/contracts";
 import {
   chromium,
   type Browser,
@@ -12,11 +13,10 @@ import type {
   RawFindingRecord,
   ScanAdapterRequest,
   ScanAdapterResult,
-  ScanAssetType,
 } from "./contracts.js";
 import { LocalEvidenceStorageAdapter, type EvidenceStorageAdapter, type StoredArtifactReference } from "./evidence-store.js";
 
-const SUPPORTED_SCAN_ASSET_TYPES = new Set<ScanAssetType>(["web_page", "component", "lti_launch", "quiz_page"]);
+const SUPPORTED_SCAN_ASSET_TYPES = new Set<Tier1ScannableAssetType>(TIER1_SCANNABLE_ASSET_TYPES);
 
 export interface AxeNodeLike {
   target?: string[];
@@ -68,8 +68,8 @@ class PlaywrightAxeAnalyzer implements AxeAnalyzerLike {
   }
 }
 
-export function assertSupportedScanAssetType(assetType: string): asserts assetType is ScanAssetType {
-  if (!SUPPORTED_SCAN_ASSET_TYPES.has(assetType as ScanAssetType)) {
+export function assertSupportedScanAssetType(assetType: string): asserts assetType is Tier1ScannableAssetType {
+  if (!SUPPORTED_SCAN_ASSET_TYPES.has(assetType as Tier1ScannableAssetType)) {
     throw new Error(`Unsupported asset type '${assetType}' for Tier 1 scan adapter.`);
   }
 }
@@ -329,7 +329,8 @@ function buildTargetFingerprint(targets: string[] | undefined): string | null {
 }
 
 function stripAbsolutePath(artifact: StoredArtifactReference) {
-  const { absolute_path: _, ...record } = artifact;
+  const { absolute_path: absolutePath, ...record } = artifact;
+  void absolutePath;
   return record;
 }
 

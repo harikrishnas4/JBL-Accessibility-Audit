@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import hashlib
 import json
-from pathlib import Path
 import uuid
+from datetime import UTC, datetime
+from pathlib import Path
 from zipfile import BadZipFile
 
 from openpyxl.utils.exceptions import InvalidFileException
@@ -13,8 +13,8 @@ from jbl_audit_api.core.exceptions import ServiceError
 from jbl_audit_api.integrations.docproc import (
     CanonicalSchemaType,
     ConfidenceTier,
-    ManifestParseResult,
     ManifestParser,
+    ManifestParseResult,
     SchemaAssignment,
     SchemaInferenceEngine,
     SchemaMap,
